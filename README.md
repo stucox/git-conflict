@@ -4,9 +4,34 @@ Simple cmd line tool to help resolve git merge conflicts.
 
 It shows the changes made in the current branch (`HEAD`) vs the changes made in the other branch (`MERGE_HEAD`), since their common ancestor.
 
-**NOTE:** Requires "diff3" conflict style. And Python 2.7 (sorry, I’m stuck in the past).
+**NOTE:** Your repo must be configured for ["diff3" conflict style](http://psung.blogspot.co.uk/2011/02/reducing-merge-headaches-git-meets.html) (see below for how to do this).
 
-**DOESN’T** yet work for conflicts which result in a “Temporary merge branch”.
+Doesn’t yet work for conflicts which result in a “Temporary merge branch”, sorry.
+
+
+## Example
+
+Say you have a diff3 conflict which looks like this:
+
+    cauliflower
+    <<<<<<< HEAD
+    peas
+    potatoes
+    ||||||| merged common ancestors
+    peas
+    =======
+    >>>>>>> topic
+    tomatoes
+
+`git-conflict` will give you this output:
+
+![](example.png)
+
+which makes it obvious that one branch added `potatoes` and the other removed `peas`, so the resolution should probably be:
+
+    cauliflower
+    potatoes
+    tomatoes
 
 
 ## Installation
@@ -35,7 +60,7 @@ It shows the changes made in the current branch (`HEAD`) vs the changes made in 
         CONFLICT (content): Merge conflict in path/to/conflicting-file-3
         ...
 
-2. Call `git conflict` with the filename of the first conflict.
+2. Call `git conflict` with the path of the first conflict.
 
         $ git conflict path/to/conflicting-file-1
 
