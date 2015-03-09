@@ -78,6 +78,18 @@ which makes it obvious that one branch added `potatoes` and the other removed `p
 6. Commit, push, celebrate.
 
 
+### Customising the output
+
+The output is generated using `git diff`. Any additional args you pass to `git conflict` will be passed on to `git diff`, e.g.:
+
+    $ git conflict path/to/file --word-diff=color
+
+Obviously only some options will make sense, as it only diffs a chunk of a file at a time.
+
+**NOTE:** By default, the `--ignore-all-space` option is always added, as this usually makes it easier to work out what’s going on. To disable this behaviour, use the custom `--consider-whitespace` option:
+
+    $ git conflict path/to/file --consider-whitespace
+
 ## Licence
 
 CC0 / Public domain.
