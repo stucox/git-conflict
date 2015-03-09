@@ -1,0 +1,102 @@
+#!/usr/bin/env python2.7
+import argparse
+import os
+import re
+import subprocess
+import tempfile
+
+parser = argparse.ArgumentParser()
+parser.add_argument('path')
+args = parser.parse_args()
+
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
+def get_conflicts():
+    """
+    Returns a list of dictionaries of all the conflicts marked in this file:
+    """
+    with open(args.path) as f:
+        file_contents = f.read()
+        # Find matches, with 2 groups marked: the head reference and the merge-head reference
+        conflicts = re.findall(
+            r'^<<<<<<< ([^\n]+)\n'              # head object name
+            r'(.*?)'                             # code at head
+            r'^\|\|\|\|\|\|\| merged common ancestors'
+            r'(.*?)'                             # code at common ancestor
+            r'^======='
+            r'(.*?)'                             # code at merge-head
+            r'^>>>>>>> ([^\n]+)\n',             # merge-head object name
+            file_contents, re.MULTILINE | re.DOTALL
+        )
+        if not conflicts:
+            raise SystemExit('No conflicts found in %s.' % args.path)
+
+        # Return as a list of dicts
+        return [{
+            'head_name': conflict[0],
+            'merge_head_name': conflict[4],
+            'head_code': conflict[1],
+            'merge_head_code': conflict[3],
+            'ancestor_code': conflict[2],
+        } for conflict in conflicts]
+
+
+def diff_strings(str1, str2):
+    """ Creates a git-style diff between 2 strings. """
+    # Write code to tmp files
+    with tempfile.NamedTemporaryFile(delete=False) as f1:
+        f1.write(str1)
+    with tempfile.NamedTemporaryFile(delete=False) as f2:
+        f2.write(str2)
+
+    try:
+        # Run diff with stdout redirected
+        p = subprocess.Popen(['git', 'diff', '--no-index', '--color-words', '-U9999', f1.name, f2.name],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE)
+        diff_output, _ = p.communicate()
+        p.poll()
+    finally:
+        # Cleanup
+        os.unlink(f1.name)
+        os.unlink(f2.name)
+
+    return diff_output
+
+
+def remove_diff_header(diff_output):
+    return diff_output[diff_output.index('@@'):]
+
+
+# Only output the first conflict in the file
+conflict = get_conflicts()[0]
+
+conflict['ancestor'] = subprocess.check_output('git merge-base {head_name} {merge_head_name}'.format(**conflict), shell=True)[:7]
+
+diff_head = diff_strings(conflict['ancestor_code'], conflict['head_code'])
+diff_merge_head = diff_strings(conflict['ancestor_code'], conflict['merge_head_code'])
+
+diff_head = remove_diff_header(diff_head)
+diff_merge_head = remove_diff_header(diff_merge_head)
+
+output = '\n'.join([
+    'Details of conflict in {}'.format(args.path),
+    bcolors.BOLD + 'Changes in {head_name} since {ancestor}:'.format(**conflict) + bcolors.ENDC,
+    diff_head,
+    bcolors.BOLD + 'Changes in {merge_head_name} since {ancestor}:'.format(**conflict) + bcolors.ENDC,
+    diff_merge_head,
+])
+
+# Output with `less`
+p = subprocess.Popen('less', shell=True, stdin=subprocess.PIPE)
+p.communicate(output)
