@@ -31,12 +31,12 @@ def get_conflicts():
         # Find matches, with 2 groups marked: the head reference and the merge-head reference
         conflicts = re.findall(
             r'^<<<<<<< ([^\n]+)\n'              # head object name
-            r'(.*?)'                             # code at head
-            r'^\|\|\|\|\|\|\| merged common ancestors'
-            r'(.*?)'                             # code at common ancestor
+            r'(.*?)'                            # code at head
+            r'^\|\|\|\|\|\|\| [^\n]+\n'
+            r'(.*?)'                            # code at common ancestor
             r'^======='
-            r'(.*?)'                             # code at merge-head
-            r'^>>>>>>> ([^\n]+)\n',             # merge-head object name
+            r'(.*?)'                            # code at merge-head
+            r'^>>>>>>> ([^\n]+)\n',          # merge-head object name
             file_contents, re.MULTILINE | re.DOTALL
         )
         if not conflicts:
@@ -45,10 +45,10 @@ def get_conflicts():
         # Return as a list of dicts
         return [{
             'head_name': conflict[0],
-            'merge_head_name': conflict[4],
             'head_code': conflict[1],
-            'merge_head_code': conflict[3],
             'ancestor_code': conflict[2],
+            'merge_head_code': conflict[3],
+            'merge_head_name': conflict[4],
         } for conflict in conflicts]
 
 
@@ -82,7 +82,10 @@ def diff_strings(str1, str2):
 
 
 def remove_diff_header(diff_output):
-    return diff_output[diff_output.index('@@'):]
+    if '@@' in diff_output:
+        return diff_output[diff_output.index('@@'):]
+    else:
+        return diff_output
 
 
 # Only output the first conflict in the file
@@ -92,11 +95,15 @@ conflict['ancestor'] = subprocess.check_output(
     'git merge-base {head_name} {merge_head_name}'.format(**conflict),
     shell=True)[:7]
 
-diff_head = diff_strings(conflict['ancestor_code'], conflict['head_code'])
-diff_merge_head = diff_strings(conflict['ancestor_code'], conflict['merge_head_code'])
-
-diff_head = remove_diff_header(diff_head)
-diff_merge_head = remove_diff_header(diff_merge_head)
+diff_head = remove_diff_header(
+    diff_strings(conflict['ancestor_code'], conflict['head_code'])
+)
+diff_merge_head = remove_diff_header(
+    diff_strings(conflict['ancestor_code'], conflict['merge_head_code'])
+)
+diff_head_vs_merge_head = remove_diff_header(
+    diff_strings(conflict['head_code'], conflict['merge_head_code'])
+)
 
 output = '\n'.join([
     'Details of conflict in {}'.format(args.path),
@@ -104,6 +111,8 @@ output = '\n'.join([
     diff_head,
     bcolors.BOLD + 'Changes in {merge_head_name} since {ancestor}:'.format(**conflict) + bcolors.ENDC,
     diff_merge_head,
+    bcolors.BOLD + 'Changes in {head_name} vs {merge_head_name}:'.format(**conflict) + bcolors.ENDC,
+    diff_head_vs_merge_head,
 ])
 
 # Output with `less`
